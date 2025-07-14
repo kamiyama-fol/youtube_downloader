@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube ダウンローダー</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        input[type="text"], input[type="url"], select, button {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .message {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .message.info { background-color: #e0f7fa; border-color: #00bcd4; color: #00796b; }
+        .message.error { background-color: #ffe0b2; border-color: #ff9800; color: #e65100; }
+        #progress-container {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        #progress-bar {
+            width: 0%;
+            height: 20px;
+            background-color: #4CAF50;
+            text-align: center;
+            line-height: 20px;
+            color: white;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>YouTube ダウンローダー</h1>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <ul class="flashes">
+                    {% for category, message in messages %}
+                        <li class="message {{ category }}">{{ message }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="/">
+            <label for="video_url">YouTube URL:</label>
+            <input type="url" id="video_url" name="video_url" placeholder="YouTube動画のURLを入力" required><br>
+
+            <label for="custom_filename">ファイル名:</label>
+            <input type="text" id="custom_filename" name="custom_filename" placeholder="例: MyVideo" required><br>
+
+            <label for="download_type">ダウンロード形式:</label>
+            <select id="download_type" name="download_type">
+                <option value="mp4">MP4 (動画)</option>
+                <option value="mp3">MP3 (音声のみ)</option>
+            </select>
+
+            <button type="submit">ダウンロード開始</button>
+        </form>
+
+        {% if session_id %}
+        <div id="progress-container">
+            <h3>ダウンロード進捗: <span id="download-title"></span></h3>
+            <p>ステータス: <span id="status">待機中</span></p>
+            <div style="background-color: #e0e0e0; border-radius: 3px;">
+                <div id="progress-bar">0%</div>
+            </div>
+            <p>速度: <span id="speed">N/A</span></p>
+            <p>残り時間: <span id="eta">N/A</span></p>
+            <p id="error-message" style="color: red;"></p>
+            <a id="download-link" style="display: none;">ダウンロード</a>
+        </div>
+
+        <script>
+            const sessionId = "{{ session_id }}";
+            const progressBar = document.getElementById('progress-bar');
+            const statusSpan = document.getElementById('status');
+            const downloadLink = document.getElementById('download-link');
+            const errorMessage = document.getElementById('error-message');
+            const downloadTitle = document.getElementById('download-title');
+            const speedSpan = document.getElementById('speed');
+            const etaSpan = document.getElementById('eta');
+
+            function updateProgress() {
+                fetch(`/progress/${sessionId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        statusSpan.textContent = data.status;
+                        progressBar.style.width = data.progress + '%';
+                        progressBar.textContent = data.progress + '%';
+                        downloadTitle.textContent = data.title ? `${data.title} (${data.download_type.toUpperCase()})` : '取得中...';
+                        speedSpan.textContent = data.speed || 'N/A';
+                        etaSpan.textContent = data.eta || 'N/A';
+
+                        if (data.error) {
+                            errorMessage.textContent = `エラー: ${data.error}`;
+                            clearInterval(intervalId); // エラーが発生したら更新を停止
+                        } else if (data.status === '完了') {
+                            downloadLink.href = data.download_url;
+                            downloadLink.textContent = `ダウンロード (${data.filename})`;
+                            downloadLink.style.display = 'block';
+                            clearInterval(intervalId); // 完了したら更新を停止
+                        } else if (data.status === 'ダウンロード中' || data.status === '処理中 (結合)') {
+                            // 処理中またはダウンロード中は継続
+                        } else {
+                            // その他の状態（待機中など）
+                        }
+                    })
+                    .catch(error => {
+                        console.error('進捗状況の取得中にエラー:', error);
+                        errorMessage.textContent = '進捗状況の取得中にエラーが発生しました。';
+                        clearInterval(intervalId);
+                    });
+            }
+
+            const intervalId = setInterval(updateProgress, 1000); // 1秒ごとに更新
+            updateProgress(); // 初回ロード時にも更新
+        </script>
+        {% endif %}
+    </div>
+</body>
+</html>
