@@ -528,10 +528,11 @@ Use .part files instead of writing directly into output file (default)
 Do not use .part files - write directly into output file
 .TP
 --mtime
-Use the Last-modified header to set the file modification time (default)
+Use the Last-modified header to set the file modification time
 .TP
 --no-mtime
 Do not use the Last-modified header to set the file modification time
+(default)
 .TP
 --write-description
 Write video description to a .description file
@@ -1275,7 +1276,7 @@ See also: Notes about environment variables
 .PP
 E.g.
 with the following configuration file, yt-dlp will always extract the
-audio, not copy the mtime, use a proxy and save all videos under
+audio, copy the mtime, use a proxy and save all videos under
 \f[V]YouTube\f[R] directory in your home directory:
 .IP
 .nf
@@ -1285,8 +1286,8 @@ audio, not copy the mtime, use a proxy and save all videos under
 # Always extract audio
 -x
 
-# Do not copy the mtime
---no-mtime
+# Copy the mtime
+--mtime
 
 # Use this proxy
 --proxy 127.0.0.1:3128
@@ -2697,6 +2698,11 @@ formats or metadata.
 See #860 (https://github.com/yt-dlp/yt-dlp/pull/860) and
 #12826 (https://github.com/yt-dlp/yt-dlp/issues/12826) for more details
 .IP \[bu] 2
+\f[V]webpage_skip\f[R]: Skip extraction of embedded webpage data.
+One or both of \f[V]player_response\f[R], \f[V]initial_data\f[R].
+These options are for testing purposes and don\[aq]t skip any network
+requests
+.IP \[bu] 2
 \f[V]player_params\f[R]: YouTube player parameters to use for player
 requests.
 Will overwrite any default ones set by yt-dlp.
@@ -2983,6 +2989,24 @@ Default is \f[V]asc\f[R]
 .IP \[bu] 2
 \f[V]backend\f[R]: Backend API to use for extraction - one of
 \f[V]streaks\f[R] (default) or \f[V]brightcove\f[R] (deprecated)
+.SS vimeo
+.IP \[bu] 2
+\f[V]client\f[R]: Client to extract video data from.
+The currently available clients are \f[V]android\f[R], \f[V]ios\f[R],
+and \f[V]web\f[R].
+Only one client can be used.
+The \f[V]android\f[R] client is used by default.
+If account cookies or credentials are used for authentication, then the
+\f[V]web\f[R] client is used by default.
+The \f[V]web\f[R] client only works with authentication.
+The \f[V]ios\f[R] client only works with previously cached OAuth tokens
+.IP \[bu] 2
+\f[V]original_format_policy\f[R]: Policy for when to try extracting
+original formats.
+One of \f[V]always\f[R], \f[V]never\f[R], or \f[V]auto\f[R].
+The default \f[V]auto\f[R] policy tries to avoid exceeding the web
+client\[aq]s API rate-limit by only making an extra request when Vimeo
+publicizes the video\[aq]s downloadability
 .PP
 \f[B]Note\f[R]: These options may be changed/removed in the future
 without concern for backward compatibility
@@ -3960,6 +3984,11 @@ The sub-modules \f[V]swfinterp\f[R], \f[V]casefold\f[R] are removed.
 Passing \f[V]--simulate\f[R] (or calling \f[V]extract_info\f[R] with
 \f[V]download=False\f[R]) no longer alters the default format selection.
 See #9843 (https://github.com/yt-dlp/yt-dlp/issues/9843) for details.
+.IP \[bu] 2
+yt-dlp no longer applies the server modified time to downloaded files by
+default.
+Use \f[V]--mtime\f[R] or \f[V]--compat-options mtime-by-default\f[R] to
+revert this.
 .PP
 For ease of use, a few more compat options are available:
 .IP \[bu] 2
@@ -3981,7 +4010,8 @@ this!\f[R])
 \f[V]--compat-options 2023\f[R]: Same as
 \f[V]--compat-options 2024,prefer-vp9-sort\f[R]
 .IP \[bu] 2
-\f[V]--compat-options 2024\f[R]: Currently does nothing.
+\f[V]--compat-options 2024\f[R]: Same as
+\f[V]--compat-options mtime-by-default\f[R].
 Use this to enable all future compat options
 .PP
 The following compat options restore vulnerable behavior from before
