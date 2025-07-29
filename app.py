@@ -1,12 +1,23 @@
-from flask import Flask, render_template, request, send_file, flash, jsonify
+from flask import Flask, render_template, request, send_file, flash, jsonify, redirect
 import os
 import threading
 import uuid
 import yt_dlp
 import shutil # ディレクトリ内のファイルを削除するために追加
+from functools import wraps
+import requests
+from dotenv import load_dotenv
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here' # フラッシュメッセージ用に秘密鍵を設定
+
+# --- ここから追加 ---
+# Configuration from environment variables
+load_dotenv()  
+LARAVEL_URL = os.environ.get('LARAVEL_URL', 'https://keion-reserve.mints.ne.jp')
+LARAVEL_AUTH_CHECK_URL = f"{LARAVEL_URL}/api/check-auth"
+LARAVEL_LOGIN_URL = f"{LARAVEL_URL}/login"
+LARAVEL_COOKIE_NAME = os.environ.get('LARAVEL_COOKIE_NAME', 'ksu_keion_reserve_session')
 
 # アプリケーションのベースディレクトリを取得
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -15,6 +26,72 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
 if not os.path.exists(DOWNLOAD_DIR):
     os.makedirs(DOWNLOAD_DIR)
+
+#Laravelでの認証を要求するデコレーター
+# def laravel_auth_required(f):
+#     @wraps(f)
+#     def decorated_function(*args, **kwargs):
+#         # ブラウザからLaravelのセッションクッキーを取得
+#         # クッキー名はLaravelの config/session.php の 'cookie' の値です (デフォルトは 'laravel_session')
+#         laravel_session_cookie = request.cookies.get(LARAVEL_COOKIE_NAME)
+
+#         if not laravel_session_cookie:
+#             # クッキーがなければ未認証なのでログインページへリダイレクト
+#             print(f"[DEBUG] Cookie '{LARAVEL_COOKIE_NAME}' not found. Redirecting to login.")
+#             return redirect(LARAVEL_LOGIN_URL)
+
+#         # クッキーをそのままLaravelのAPIへ転送して認証状態を確認
+#         cookies = {
+#             LARAVEL_COOKIE_NAME: laravel_session_cookie
+#         }
+#         # APIリクエストであることをLaravelに伝えるためのヘッダー
+#         headers = {
+#             'Accept': 'application/json'
+#         }
+        
+#         print(f"[DEBUG] Sending auth check request to {LARAVEL_AUTH_CHECK_URL}")
+#         try:
+#             # 本番環境では verify=True にし、適切なSSL証明書を使用してください
+#             # allow_redirects=False を追加して、リダイレクトを自動で追跡しないようにする
+#             response = requests.get(
+#                 LARAVEL_AUTH_CHECK_URL,
+#                 cookies=cookies,
+#                 headers=headers,
+#                 timeout=5,
+#                 verify=False,
+#                 allow_redirects=False
+#             )
+            
+#             print(f"[DEBUG] Auth check response status code: {response.status_code}")
+#             # 認証成功（ステータスコード 200）かチェック
+#             if response.status_code == 200:
+#                 try:
+#                     user_data = response.json()
+#                     print(f"[DEBUG] Auth check response JSON: {user_data}")
+#                     # レスポンスがJSONで、かつユーザー情報(例: id)が含まれているか確認
+#                     if user_data and 'id' in user_data:
+#                         # 認証済みなので、元の処理を続行
+#                         print("[DEBUG] Authentication successful. Proceeding.")
+#                         return f(*args, **kwargs)
+#                     else:
+#                         # ステータスは200だが、期待したユーザー情報が含まれていない
+#                         print("[DEBUG] Status is 200, but user data is invalid. Redirecting to login.")
+#                         return redirect(LARAVEL_LOGIN_URL)
+#                 except requests.exceptions.JSONDecodeError:
+#                     # ステータスは200だが、JSONではない（ログインページHTMLなど）
+#                     print("[DEBUG] Status is 200, but response is not JSON. Redirecting to login.")
+#                     return redirect(LARAVEL_LOGIN_URL)
+#             else:
+#                 # 認証失敗（リダイレクト、401 Unauthorizedなど）
+#                 print(f"[DEBUG] Auth check failed with status {response.status_code}. Redirecting to login.")
+#                 return redirect(LARAVEL_LOGIN_URL)
+
+#         except requests.exceptions.RequestException as e:
+#             # Laravelサーバーに接続できない場合のエラーハンドリング
+#             print(f"[DEBUG] Exception during auth check request: {e}")
+#             return "認証サービスが利用できません。", 503
+
+#     return decorated_function
 
 # ダウンロード進捗と完了状態を管理する辞書
 download_progress = {}
@@ -67,17 +144,6 @@ def background_download(video_url, download_type, session_id, custom_filename=No
     }
 
     try:
-        # ダウンロードディレクトリ内の既存ファイルを削除
-        print(f"[{session_id}] ダウンロードディレクトリ '{DOWNLOAD_DIR}' 内の既存ファイルを削除します。")
-        for item in os.listdir(DOWNLOAD_DIR):
-            item_path = os.path.join(DOWNLOAD_DIR, item)
-            if os.path.isfile(item_path): # ファイルのみを削除（サブディレクトリは削除しない）
-                try:
-                    os.remove(item_path)
-                    print(f"  - 削除済み: {item_path}")
-                except Exception as e:
-                    print(f"  - 削除失敗: {item_path} - {e}")
-        print(f"[{session_id}] 既存ファイルの削除が完了しました。")
 
         # yt-dlpオプションの設定
         ydl_opts = {
@@ -210,6 +276,7 @@ def background_download(video_url, download_type, session_id, custom_filename=No
         print(f"[{session_id}] エラー: {e}")
 
 @app.route('/', methods=['GET', 'POST'])
+# @laravel_auth_required
 def index():
     if request.method == 'POST':
         video_url = request.form['video_url']
@@ -233,12 +300,14 @@ def index():
 
 # ダウンロード進捗状況を提供するエンドポイント
 @app.route('/progress/<session_id>')
+# @laravel_auth_required
 def progress(session_id):
     progress_info = download_progress.get(session_id, {'status': '待機中', 'progress': 0, 'error': None})
     return jsonify(progress_info)
 
 # 実際のファイルを送信するエンドポイント
 @app.route('/download_file/<session_id>')
+#@laravel_auth_required
 def download_file(session_id):
     progress_info = download_progress.get(session_id)
     if progress_info and progress_info['status'] == '完了' and progress_info['actual_file_path']:
@@ -255,6 +324,22 @@ def download_file(session_id):
     else:
         # ダウンロードが完了していない、または情報がない場合
         return jsonify({'status': '待機中', 'progress': progress_info.get('progress', 0), 'error': 'ダウンロードがまだ完了していません。'}), 202
+
+@app.route('/clear_progress', methods=['POST'])
+# @laravel_auth_required
+def clear_progress():
+    # ダウンロードディレクトリ内の既存ファイルを削除
+    print(f"ダウンロードディレクトリ '{DOWNLOAD_DIR}' 内の既存ファイルを削除します。")
+    for item in os.listdir(DOWNLOAD_DIR):
+        item_path = os.path.join(DOWNLOAD_DIR, item)
+        if os.path.isfile(item_path): # ファイルのみを削除（サブディレクトリは削除しない）
+            try:
+                os.remove(item_path)
+                print(f"  - 削除済み: {item_path}")
+            except Exception as e:
+                print(f"  - 削除失敗: {item_path} - {e}")
+    print(f"既存ファイルの削除が完了しました。")
+    return jsonify({'status': 'success', 'message': 'ダウンロードディレクトリをクリアしました。'})
 
 if __name__ == '__main__':
     app.run(debug=True, threaded=True)
