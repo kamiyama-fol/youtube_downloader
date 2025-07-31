@@ -63,7 +63,7 @@
             {% endif %}
         {% endwith %}
 
-        <form method="POST" action="/">
+        <form method="POST" action="">
             <label for="video_url">YouTube URL:</label>
             <input type="url" id="video_url" name="video_url" placeholder="YouTube動画のURLを入力" required><br>
 
@@ -103,7 +103,7 @@
             const etaSpan = document.getElementById('eta');
 
             function updateProgress() {
-                fetch(`/progress/${sessionId}`)
+                fetch(`progress/${sessionId}`)
                     .then(response => response.json())
                     .then(data => {
                         statusSpan.textContent = data.status;
