@@ -150,7 +150,7 @@ def background_download(video_url, download_type, session_id, custom_filename=No
             'progress_hooks': [lambda d: yt_dlp_progress_hook(d, session_id)],
             'no_warnings': True,
             'quiet': True,       
-            'format': 'bestvideo+bestaudio/best',
+            'format': 'bestvideo[ext=mp4]+bestaudio/best[ext=mp4]'
             'restrictfilenames': True, # ファイル名の制限は維持
             'verbose': True, # デバッグのため詳細ログを有効に（問題解決後は False に戻すか削除）
         }
