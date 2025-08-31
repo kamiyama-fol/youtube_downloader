@@ -7,5 +7,5 @@ sys.path.insert(0, '/var/www/youtube_downloader')
 from app import app as application
 
 # オプション: Apacheがリバースプロキシとして機能する場合、ProxyFixを適用
-from werkzeug.middleware.proxy_fix import ProxyFix
-application = ProxyFix(application)
+# from werkzeug.middleware.proxy_fix import ProxyFix
+# application = ProxyFix(application)
